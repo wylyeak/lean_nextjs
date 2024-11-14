@@ -1,27 +1,25 @@
-import { sql } from '@vercel/postgres';
+import { customers, invoices, revenue } from "../lib/placeholder-data";
 import {
+  Customer,
   CustomerField,
   CustomersTableType,
   InvoiceForm,
   InvoicesTable,
-  LatestInvoiceRaw,
-  Revenue,
+  LatestInvoice
 } from './definitions';
 import { formatCurrency } from './utils';
 
 export async function fetchRevenue() {
   try {
-    // Artificially delay a response for demo purposes.
+    // We artificially delay a response for demo purposes.
     // Don't do this in production :)
+    const ms = Math.random() * 5000
+    console.log('Fetching revenue data...', ms);
+    await new Promise((resolve) => setTimeout(resolve, ms));
 
-    // console.log('Fetching revenue data...');
-    // await new Promise((resolve) => setTimeout(resolve, 3000));
+    console.log('Data fetch completed after ', ms, ' seconds.');
 
-    const data = await sql<Revenue>`SELECT * FROM revenue`;
-
-    // console.log('Data fetch completed after 3 seconds.');
-
-    return data.rows;
+    return revenue;
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to fetch revenue data.');
@@ -30,18 +28,27 @@ export async function fetchRevenue() {
 
 export async function fetchLatestInvoices() {
   try {
-    const data = await sql<LatestInvoiceRaw>`
-      SELECT invoices.amount, customers.name, customers.image_url, customers.email, invoices.id
-      FROM invoices
-      JOIN customers ON invoices.customer_id = customers.id
-      ORDER BY invoices.date DESC
-      LIMIT 5`;
+    const ms = Math.random() * 5000
+    console.log('fetchLatestInvoices...', ms);
+    await new Promise((resolve) => setTimeout(resolve, Math.random() * 5000));
 
-    const latestInvoices = data.rows.map((invoice) => ({
-      ...invoice,
-      amount: formatCurrency(invoice.amount),
-    }));
-    return latestInvoices;
+    console.log('Data fetch completed after ', ms, ' seconds.');
+
+    let top5Item = invoices.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
+
+    // 获取前 5 个，并通过 consumerId 进行 JOIN
+    let id = 0
+    return top5Item.map(item => {
+      const consumer = (customers.find(consumer => consumer.id === item.customer_id)) as Customer;
+      return {
+        amount: formatCurrency(item.amount),
+        name: consumer.name,
+        image_url: consumer.image_url,
+        email: consumer.email,
+        id: id++ + ""
+      } as LatestInvoice;
+    });
+
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to fetch the latest invoices.');
@@ -50,26 +57,27 @@ export async function fetchLatestInvoices() {
 
 export async function fetchCardData() {
   try {
-    // You can probably combine these into a single SQL query
-    // However, we are intentionally splitting them to demonstrate
-    // how to initialize multiple queries in parallel with JS.
-    const invoiceCountPromise = sql`SELECT COUNT(*) FROM invoices`;
-    const customerCountPromise = sql`SELECT COUNT(*) FROM customers`;
-    const invoiceStatusPromise = sql`SELECT
-         SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) AS "paid",
-         SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) AS "pending"
-         FROM invoices`;
 
-    const data = await Promise.all([
-      invoiceCountPromise,
-      customerCountPromise,
-      invoiceStatusPromise,
-    ]);
+    const ms = Math.random() * 5000
+    console.log('fetchCardData...', ms);
+    await new Promise((resolve) => setTimeout(resolve, Math.random() * 5000));
 
-    const numberOfInvoices = Number(data[0].rows[0].count ?? '0');
-    const numberOfCustomers = Number(data[1].rows[0].count ?? '0');
-    const totalPaidInvoices = formatCurrency(data[2].rows[0].paid ?? '0');
-    const totalPendingInvoices = formatCurrency(data[2].rows[0].pending ?? '0');
+    console.log('Data fetch completed after ', ms, ' seconds.');
+
+    const result = invoices.reduce((acc: any, item) => {
+      // 如果该组别还没有存在，则初始化它
+      if (!acc[item.status]) {
+        acc[item.status] = 0;
+      }
+      // 累加该组别的值
+      acc[item.status] += item.amount;
+      return acc;
+    }, {});
+
+    const numberOfInvoices = invoices.length;
+    const numberOfCustomers = customers.length;
+    const totalPaidInvoices = formatCurrency(result['paid']);
+    const totalPendingInvoices = formatCurrency(result['pending']);
 
     return {
       numberOfCustomers,
@@ -91,28 +99,34 @@ export async function fetchFilteredInvoices(
   const offset = (currentPage - 1) * ITEMS_PER_PAGE;
 
   try {
-    const invoices = await sql<InvoicesTable>`
-      SELECT
-        invoices.id,
-        invoices.amount,
-        invoices.date,
-        invoices.status,
-        customers.name,
-        customers.email,
-        customers.image_url
-      FROM invoices
-      JOIN customers ON invoices.customer_id = customers.id
-      WHERE
-        customers.name ILIKE ${`%${query}%`} OR
-        customers.email ILIKE ${`%${query}%`} OR
-        invoices.amount::text ILIKE ${`%${query}%`} OR
-        invoices.date::text ILIKE ${`%${query}%`} OR
-        invoices.status ILIKE ${`%${query}%`}
-      ORDER BY invoices.date DESC
-      LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}
-    `;
 
-    return invoices.rows;
+    const ms = Math.random() * 5000
+    console.log('fetchLatestInvoices...', ms);
+    await new Promise((resolve) => setTimeout(resolve, Math.random() * 5000));
+
+    console.log('Data fetch completed after ', ms, ' seconds.');
+
+    let id = 0
+    let invoiceList = invoices.map(item => {
+      const consumer = (customers.find(consumer => consumer.id === item.customer_id)) as Customer;
+      return {
+        ...item,
+        ...consumer,
+        id: id++ + ""
+      } as InvoicesTable;
+    })
+
+    return invoiceList
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .filter(item => {
+        return item.name.indexOf(query) != -1 
+          || item.email.indexOf(query) != -1 
+          || (item.amount + "").indexOf(query) != -1 
+          || item.date.indexOf(query) != -1 
+          || item.status.indexOf(query) != -1 
+      })
+      .slice(offset, ITEMS_PER_PAGE)
+      
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to fetch invoices.');
