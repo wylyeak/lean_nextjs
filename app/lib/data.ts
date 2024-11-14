@@ -9,6 +9,17 @@ import {
 } from './definitions';
 import { formatCurrency } from './utils';
 
+
+let id = 0
+const invoiceList = invoices.map(item => {
+  const consumer = (customers.find(consumer => consumer.id === item.customer_id)) as Customer;
+  return {
+    ...item,
+    ...consumer,
+    id: id++ + ""
+  } as InvoicesTable;
+})
+
 export async function fetchRevenue() {
   try {
     // We artificially delay a response for demo purposes.
@@ -100,32 +111,23 @@ export async function fetchFilteredInvoices(
 
   try {
 
-    const ms = Math.random() * 5000
+    const ms = Math.random() * 1000
     console.log('fetchLatestInvoices...', ms);
     await new Promise((resolve) => setTimeout(resolve, Math.random() * 5000));
 
     console.log('Data fetch completed after ', ms, ' seconds.');
 
-    let id = 0
-    let invoiceList = invoices.map(item => {
-      const consumer = (customers.find(consumer => consumer.id === item.customer_id)) as Customer;
-      return {
-        ...item,
-        ...consumer,
-        id: id++ + ""
-      } as InvoicesTable;
-    })
-
     return invoiceList
       .sort((a, b) => b.date.localeCompare(a.date))
       .filter(item => {
-        return item.name.indexOf(query) != -1 
+        return query === ""
+          || item.name.indexOf(query) != -1 
           || item.email.indexOf(query) != -1 
           || (item.amount + "").indexOf(query) != -1 
           || item.date.indexOf(query) != -1 
           || item.status.indexOf(query) != -1 
       })
-      .slice(offset, ITEMS_PER_PAGE)
+      .slice(offset, offset + ITEMS_PER_PAGE)
       
   } catch (error) {
     console.error('Database Error:', error);
@@ -135,18 +137,17 @@ export async function fetchFilteredInvoices(
 
 export async function fetchInvoicesPages(query: string) {
   try {
-    const count = await sql`SELECT COUNT(*)
-    FROM invoices
-    JOIN customers ON invoices.customer_id = customers.id
-    WHERE
-      customers.name ILIKE ${`%${query}%`} OR
-      customers.email ILIKE ${`%${query}%`} OR
-      invoices.amount::text ILIKE ${`%${query}%`} OR
-      invoices.date::text ILIKE ${`%${query}%`} OR
-      invoices.status ILIKE ${`%${query}%`}
-  `;
+    const count = invoiceList
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .filter(item => {
+        return item.name.indexOf(query) != -1
+          || item.email.indexOf(query) != -1
+          || (item.amount + "").indexOf(query) != -1
+          || item.date.indexOf(query) != -1
+          || item.status.indexOf(query) != -1
+      }).length
 
-    const totalPages = Math.ceil(Number(count.rows[0].count) / ITEMS_PER_PAGE);
+    const totalPages = Math.ceil(count / ITEMS_PER_PAGE);
     return totalPages;
   } catch (error) {
     console.error('Database Error:', error);
