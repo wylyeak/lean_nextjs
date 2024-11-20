@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
-const { getClient } = require('../lib/pg-local');
+import { getClient } from '../lib/pg-local';
+
 import { invoices, customers, revenue, users } from '../lib/placeholder-data';
 
 const client = await getClient();
@@ -106,13 +107,27 @@ export async function GET() {
     message:
       'Uncomment this file and remove this line. You can delete this file when you are finished.',
   });
+
+  console.log('------------')
   try {
     await client.sql`BEGIN`;
+    console.log('1')
     await seedUsers();
+    console.log('2')
     await seedCustomers();
+    console.log('3')
     await seedInvoices();
+    console.log('4')
     await seedRevenue();
+
+    console.log('5')
     await client.sql`COMMIT`;
+
+    console.log('6')
+
+    await client.end();
+
+    console.log('7')
 
     return Response.json({ message: 'Database seeded successfully' });
   } catch (error) {
